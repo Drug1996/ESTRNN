@@ -89,10 +89,10 @@ class DeblurDataset(Dataset):
             self.seqs_info = pickle.load(f)
             f.close()
             self.transform = transforms.Compose([Crop(256), Flip(), ToTensor()])
-        elif dataset_type == 'test':
-            self.datapath_blur = join(datapath, 'gopro_ds_test')
-            self.datapath_gt = join(datapath, 'gopro_ds_test_gt')
-            f = open(join(datapath, 'gopro_ds_info_test.pkl'), 'rb')
+        elif dataset_type == 'valid':
+            self.datapath_blur = join(datapath, 'gopro_ds_valid')
+            self.datapath_gt = join(datapath, 'gopro_ds_valid_gt')
+            f = open(join(datapath, 'gopro_ds_info_valid.pkl'), 'rb')
             self.seqs_info = pickle.load(f)
             f.close()
             self.transform = transforms.Compose([Crop(256), ToTensor()])

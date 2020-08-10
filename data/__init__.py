@@ -9,4 +9,4 @@ class Data(object):
         elif para.loader_mode == 'torch':
             module = import_module('data.' + dataset)
         self.dataloader_train = module.Dataloader(para, device_id, ds_type='train')
-        self.dataloader_valid = module.Dataloader(para, device_id, ds_type='test')
+        self.dataloader_valid = module.Dataloader(para, device_id, ds_type='valid')
