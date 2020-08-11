@@ -60,7 +60,7 @@ If you use any part of our code, or ESTRNN and BSD are useful for your research,
   title={Efficient Spatio-Temporal Recurrent Neural Network for Video Deblurring},
   author={Zhong, Zhihang and Ye, Gao and Zheng, Yinqiang and Bo, Zheng},
   booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
-  month = {August}
+  month = {August},
   year={2020}
 }
 ```
