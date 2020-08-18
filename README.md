@@ -1,5 +1,5 @@
 # ESTRNN
-[Efficient Spatio-Temporal Recurrent Neural Network for Video Deblurring (ECCV2020 Spotlight)](https://github.com/zzh-tech/ESTRNN/)  
+[Efficient Spatio-Temporal Recurrent Neural Network for Video Deblurring (ECCV2020 Spotlight)](http://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123510188.pdf)  
 
 by Zhihang Zhong, Ye Gao, Yinqiang Zheng, Bo Zheng
 
