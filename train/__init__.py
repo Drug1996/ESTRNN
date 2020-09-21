@@ -445,10 +445,14 @@ def test(para, logger):
     datasetType = para.dataset + '_lmdb'
     modelName = para.model.lower()
     model = Model(para).model.cuda()
-    model = nn.DataParallel(model)
     checkpointPath = para.test_checkpoint
     checkpoint = torch.load(checkpointPath, map_location=lambda storage, loc: storage.cuda())
-    model.load_state_dict(checkpoint['state_dict'])
+    try:
+        model.load_state_dict(checkpoint['state_dict'])
+        model = nn.DataParallel(model)
+    except:
+        model = nn.DataParallel(model)
+        model.load_state_dict(checkpoint['state_dict'])
     if para.dataset == 'gopro_ds':
         H, W, C = 540, 960, 3
         lmdbType = 'valid'
