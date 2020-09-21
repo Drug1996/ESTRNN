@@ -81,27 +81,27 @@ class ToTensor(object):
 
 
 class DeblurDataset(Dataset):
-    def __init__(self, datapath='./lmdb_dataset/', dataset_type='train', frames=8, num_ff=2, num_fb=2, verbose=False):
+    def __init__(self, datapath='./lmdb_dataset/', dataset_type='train', frames=8, num_ff=2, num_fb=2, crop_size=256, verbose=False):
         if dataset_type == 'train':
             self.datapath_blur = join(datapath, 'gopro_ds_train')
             self.datapath_gt = join(datapath, 'gopro_ds_train_gt')
             f = open(join(datapath, 'gopro_ds_info_train.pkl'), 'rb')
             self.seqs_info = pickle.load(f)
             f.close()
-            self.transform = transforms.Compose([Crop(256), Flip(), ToTensor()])
+            self.transform = transforms.Compose([Crop(crop_size), Flip(), ToTensor()])
         elif dataset_type == 'valid':
             self.datapath_blur = join(datapath, 'gopro_ds_valid')
             self.datapath_gt = join(datapath, 'gopro_ds_valid_gt')
             f = open(join(datapath, 'gopro_ds_info_valid.pkl'), 'rb')
             self.seqs_info = pickle.load(f)
             f.close()
-            self.transform = transforms.Compose([Crop(256), ToTensor()])
+            self.transform = transforms.Compose([Crop(crop_size), ToTensor()])
         self.verbose = verbose
         self.seq_num = self.seqs_info['num']
         self.seq_id_start = 0
         self.seq_id_end = self.seq_num - 1
         self.frames = frames
-        self.crop_size = 256
+        self.crop_size = crop_size
         self.W = 960
         self.H = 540
         self.down_ratio = 1
@@ -165,7 +165,7 @@ class Dataloader:
     def __init__(self, para, device_id, ds_type='train'):
         self.para = para
         path = join(para.data_root, para.dataset+'_lmdb')
-        self.dataset = DeblurDataset(path, ds_type, para.frames, para.future_frames, para.past_frames)
+        self.dataset = DeblurDataset(path, ds_type, para.frames, para.future_frames, para.past_frames, para.patch_size)
         gpus = self.para.num_gpus
         bs = self.para.batch_size
         ds_len = len(self.dataset)

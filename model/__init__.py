@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from importlib import import_module
-# from thop import profile
+from thop import profile
 
 
 class Model(nn.Module):
@@ -17,14 +17,14 @@ class Model(nn.Module):
 
     def profile(self):
         device = torch.device('cpu' if self.para.cpu else 'cuda')
-        frames = self.para.frames
+        frames = self.para.future_frames + 1+ self.para.past_frames
         H = self.para.profile_H
         W = self.para.profile_W
         x = torch.randn(1, frames, 3, H, W).to(device)
         profile_flag = True
         flops, params = profile(self.model.to(device), inputs=(x, profile_flag), verbose=False)
 
-        return flops, params
+        return flops/frames, params
 
 
     def forward(self, x):

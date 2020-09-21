@@ -6,15 +6,15 @@ by Zhihang Zhong, Ye Gao, Yinqiang Zheng, Bo Zheng
 
 ## Results
 ### Results on REDS
-![image](./imgs/reds.gif)
+![image](https://github.com/zzh-tech/Images/blob/master/ESTRNN/reds.gif)
 
 
 ### Results on GOPRO
-![image](./imgs/gopro.gif)
+![image](https://github.com/zzh-tech/Images/blob/master/ESTRNN/gopro.gif)
 
 
 ### Results on BSD
-![image](./imgs/bsd.gif)
+![image](https://github.com/zzh-tech/Images/blob/master/ESTRNN/bsd.gif)
 
 
 ## Prerequisites
@@ -22,6 +22,7 @@ by Zhihang Zhong, Ye Gao, Yinqiang Zheng, Bo Zheng
 - PyTorch 1.4 with GPU
 - opencv-python
 - lmdb
+- thop
 
 
 ## Training
@@ -39,15 +40,21 @@ python main.py --data_root <path>
 
 You can also tune the hyper parameters such as batch size, learning rate, epoch number, etc., by specifying it in command or changing the corresponding value in "*./para/\_\_init\_\_.py*".   
 ```bash
-python main.py --lr 1e-4 --batch_size 4 --num_gpus 2 --trainer_mode ddp
+python main.py --data_root <path> --lr 1e-4 --batch_size 4 --num_gpus 2 --trainer_mode ddp
 ```
 
+Test only command:
+
+```bash
+python main.py --test_only --video --test_checkpoint <path> --test_save_dir <path> 
+```
 
 ## Beam-Splitter Dataset (BSD)
+
 Now, we are trying to collect a more complete beam-splitter dataset for video deblurring, using the proposed beam-splitter capture system as below:  
 
-![image](./imgs/bsd_system.png)
-![image](./imgs/bsd_demo.gif)
+![image](https://github.com/zzh-tech/Images/blob/master/ESTRNN/bsd_system.png)
+![image](https://github.com/zzh-tech/Images/blob/master/ESTRNN/bsd_demo.gif)
 
 
 We will release our BSD dataset soon...

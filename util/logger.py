@@ -19,7 +19,7 @@ class Logger():
         self.register_dict = {}
 
     def record_para(self):
-        self('recording parameters ...', prefix='\n')
+        self('recording parameters ...')
         for key, value in vars(self.para).items():
             self('{}: {}'.format(key, value), timestamp=False)
 
@@ -39,6 +39,7 @@ class Logger():
             info += msg + '\n'
         self.logger.write(info)
         if verbose: print(info, end='')
+        self.logger.flush()
 
     def __del__(self):
         self.logger.close()

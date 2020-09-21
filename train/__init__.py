@@ -14,6 +14,35 @@ import numpy as np
 from torch.nn.parallel import DistributedDataParallel as DDP
 from util.logger import Logger
 from datetime import datetime
+import pickle
+import lmdb
+import cv2
+from os.path import join, dirname
+
+
+# reduce tensor from multiple gpus
+def reduce_tensor(para, ts):
+    dist.reduce(ts, dst=0, op=dist.ReduceOp.SUM)
+    ts /= para.num_gpus
+    return ts
+
+
+# computes and stores the average and current value
+class AverageMeter(object):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 
 class Trainer(object):
@@ -27,25 +56,29 @@ class Trainer(object):
         self.para.time = datetime.now()
         logger = Logger(self.para)
         logger.record_para()
-        # # record model profile: computation cost & # of parameters
-        # if not self.para.no_profile:
-        #     self.profile(logger)
-        #     del logger
-        # main work of trainer
-        if self.para.trainer_mode == 'ddp':
-            gpus = self.para.num_gpus
-            mp.spawn(dist_proc, nprocs=gpus, args=(self.para,))
-        elif self.para.trainer_mode == 'dp':
-            proc(self.para)
+
+        # record model profile: computation cost & # of parameters
+        if not self.para.no_profile:
+            self.profile(logger)
+
+        # training
+        if not self.para.test_only:
+            if self.para.trainer_mode == 'ddp':
+                gpus = self.para.num_gpus
+                mp.spawn(dist_proc, nprocs=gpus, args=(self.para,))
+            elif self.para.trainer_mode == 'dp':
+                proc(self.para)
+
+        # test
+        test(self.para, logger)
 
     def profile(self, logger):
         model = Model(self.para)
         flops, params = model.profile()
         del model
-        frames = self.para.frames
         logger('generating profile of {} model ...'.format(self.para.model), prefix='\n')
         logger('[profile] computation cost: {:.2f} GMACs, parameters: {:.2f} M'.format(
-            flops / (frames) / 10 ** 9, params / 10 ** 6), timestamp=False)
+            flops / 10 ** 9, params / 10 ** 6), timestamp=False)
 
 
 # *************************************************************
@@ -231,30 +264,6 @@ def dist_valid(valid_loader, model, criterion, metrics, epoch, para, logger):
         logger('[valid] epoch time: {:.2f}s, average batch time: {:.2f}s'.format(end-start, batchtime_meter.avg), timestamp=False)
         logger.report([[para.loss, 'min'], [para.metrics, 'max']], state='valid', epoch=epoch)
 
-
-# reduce tensor from multiple gpus
-def reduce_tensor(para, ts):
-    dist.reduce(ts, dst=0, op=dist.ReduceOp.SUM)
-    ts /= para.num_gpus
-    return ts
-
-
-# computes and stores the average and current value
-class AverageMeter(object):
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
 # *************************************************************
 
 
@@ -424,3 +433,109 @@ def valid(valid_loader, model, criterion, metrics, epoch, para, logger):
     logger('[valid] epoch time: {:.2f}s, average batch time: {:.2f}s'.format(end-start, batchtime_meter.avg), timestamp=False)
     logger.report([[para.loss, 'min'], [para.metrics, 'max']], state='valid', epoch=epoch)
 # *************************************************************
+
+# *************************************************************
+# test for lmdb dataset
+def test(para, logger):
+    logger('{} image results generating ...'.format(para.dataset), prefix='\n')
+    if not para.test_only:
+        para.test_checkpoint = join(logger.save_dir, 'model_best.path.tar')
+    if para.test_save_dir == None:
+        para.test_save_dir = logger.save_dir
+    datasetType = para.dataset + '_lmdb'
+    modelName = para.model.lower()
+    model = Model(para).model.cuda()
+    model = nn.DataParallel(model)
+    checkpointPath = para.test_checkpoint
+    checkpoint = torch.load(checkpointPath, map_location=lambda storage, loc: storage.cuda())
+    model.load_state_dict(checkpoint['state_dict'])
+    if para.dataset == 'gopro_ds':
+        H, W, C = 540, 960, 3
+        lmdbType = 'valid'
+    else:
+        H, W, C = 720, 1280, 3
+        lmdbType = 'test'
+    data_test_path = join(para.data_root, datasetType, datasetType[:-4] + lmdbType)
+    data_test_gt_path = join(para.data_root, datasetType, datasetType[:-4] + lmdbType + '_gt')
+    env_blur = lmdb.open(data_test_path, map_size=int(3e10))
+    env_gt = lmdb.open(data_test_gt_path, map_size=int(3e10))
+    txn_blur = env_blur.begin()
+    txn_gt = env_gt.begin()
+    # load dataset info
+    data_test_info_path = join(para.data_root, datasetType, datasetType[:-4] + 'info_{}.pkl'.format(lmdbType))
+    with open(data_test_info_path, 'rb') as f:
+        seqs_info = pickle.load(f)
+    for seq_idx in range(seqs_info['num']):
+        # break
+        logger('seq {:03d} image results generating ...'.format(seq_idx))
+        torch.cuda.empty_cache()
+        save_dir = join(para.test_save_dir, datasetType+'_results_test', '{:03d}'.format(seq_idx))
+        os.makedirs(save_dir, exist_ok=True)  # create the dir if not exist
+        start = 0
+        end = para.test_frames
+        while (True):
+            input_seq = []
+            label_seq = []
+            for frame_idx in range(start, end):
+                code = '%03d_%08d' % (seq_idx, frame_idx)
+                code = code.encode()
+                img_blur = txn_blur.get(code)
+                img_blur = np.frombuffer(img_blur, dtype='uint8')
+                img_blur = img_blur.reshape(H, W, C)
+                img_gt = txn_gt.get(code)
+                img_gt = np.frombuffer(img_gt, dtype='uint8')
+                img_gt = img_gt.reshape(H, W, C)
+                input_seq.append(img_blur.transpose((2, 0, 1))[np.newaxis, :])
+                label_seq.append(img_gt.transpose((2, 0, 1))[np.newaxis, :])
+            input_seq = np.concatenate(input_seq)[np.newaxis, :]
+            label_seq = np.concatenate(label_seq)[np.newaxis, :]
+            model.eval()
+            with torch.no_grad():
+                input_seq = torch.from_numpy(input_seq).float().cuda()
+                label_seq = torch.from_numpy(label_seq).float().cuda()
+                # print(seq_idx, datasetType, modelName, input_seq.shape, label_seq.shape)
+                output_seq = model(input_seq).clamp(0, 255).squeeze()
+            for frame_idx in range(para.past_frames, end - start - para.future_frames):
+                img_blur = input_seq.squeeze()[frame_idx].squeeze()
+                img_blur = img_blur.detach().cpu().numpy().transpose((1, 2, 0))
+                img_gt = label_seq.squeeze()[frame_idx].squeeze()
+                img_gt = img_gt.detach().cpu().numpy().transpose((1, 2, 0))
+                img_deblur = output_seq[frame_idx - para.past_frames]
+                img_deblur = img_deblur.detach().cpu().numpy().transpose((1, 2, 0))
+                cv2.imwrite(join(save_dir, '{:08d}_blur.png'.format(frame_idx + start)), img_blur)
+                cv2.imwrite(join(save_dir, '{:08d}_gt.png'.format(frame_idx + start)), img_gt)
+                cv2.imwrite(join(save_dir, '{:08d}_{}.png'.format(frame_idx + start, modelName)), img_deblur)
+            if end == seqs_info[seq_idx]['length']:
+                break
+            else:
+                start = end - para.future_frames - para.past_frames
+                end = start + para.test_frames
+                if end > seqs_info[seq_idx]['length']:
+                    end = seqs_info[seq_idx]['length']
+                    start = end - para.test_frames
+    if para.video:
+        logger('{} video results generating ...'.format(para.dataset), prefix='\n')
+        marks = ['Blur', modelName, 'GT']
+        path = join(para.test_save_dir, datasetType+'_results_test')
+        for i in range(seqs_info['num']):
+            logger('seq {:03d} video result generating ...'.format(i))
+            pic2video(path, (3 * W, 1 * H), seq_num=i, frames=seqs_info[i]['length'], save_dir=path, marks=marks, fp=para.past_frames, ff=para.future_frames)
+
+# generate video
+def pic2video(path, size, seq_num, frames, save_dir, marks, fp, ff, fps=10):
+    file_path = join(save_dir, '{:03d}.avi'.format(seq_num))
+    os.makedirs(dirname(save_dir), exist_ok=True)  # create the dir if not exist
+    path = join(path, '{:03d}'.format(seq_num))
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    video = cv2.VideoWriter(file_path, fourcc, fps, size)
+    # print(frames)
+    for i in range(fp, frames - ff):
+        imgs = []
+        for j in range(len(marks)):
+            img_path = join(path, '{:08d}_{}.png'.format(i, marks[j].lower()))
+            img = cv2.imread(img_path)
+            img = cv2.putText(img, marks[j], (60, 60), cv2.FONT_HERSHEY_PLAIN, 2.0, (0, 0, 255), 2)
+            imgs.append(img)
+        frame = np.concatenate(imgs, axis=1)
+        video.write(frame)
+    video.release()

@@ -22,7 +22,7 @@ class Parameter:
         self.parser.add_argument('--profile_H', type=int, default=720, help='height of image to generate profile of model')
         self.parser.add_argument('--profile_W', type=int, default=1280, help='width of image to generate profile of model')
         self.parser.add_argument('--resume', action='store_true', help='resume from checkpoint')
-        self.parser.add_argument('--resume_file', type=str, default='', help='the path of checkpoint file')
+        self.parser.add_argument('--resume_file', type=str, default='', help='the path of checkpoint file for resume')
         self.parser.add_argument('--dependency', type=str, default='lmdb tqdm thop', help='the libs that need to be installed on the cloud')
 
         # data parameters
@@ -31,7 +31,7 @@ class Parameter:
         self.parser.add_argument('--save_dir', type=str, default='./experiment/', help='directory to save logs of experiments')
         self.parser.add_argument('--loader_mode', type=str, default='lmdb', help='mode of dataloader')
         self.parser.add_argument('--frames', type=int, default=10, help='# of frames of subsequence')
-        # self.parser.add_argument('--patch_size', type=int, default=256, help='patch size for cropping')
+        self.parser.add_argument('--patch_size', type=int, default=256, help='patch size for cropping')
 
         # model parameters
         self.parser.add_argument('--model', type=str, default='ESTRNN', help='type of model to construct')
@@ -59,6 +59,13 @@ class Parameter:
         self.parser.add_argument('--start_epoch', type=int, default=1, help='first epoch number')
         self.parser.add_argument('--end_epoch', type=int, default=500, help='last epoch number')
         self.parser.add_argument('--trainer_mode', type=str, default='dp', help='trainer mode: distributed data parallel (ddp) or data parallel (dp)')
+
+        # test parameters
+        self.parser.add_argument('--test_only', action='store_true', help='only do test')
+        self.parser.add_argument('--test_frames', type=int, default=20, help='frame size for test, if GPU memory is small, please reduce this value')
+        self.parser.add_argument('--test_save_dir', type=str, help='where to save test results')
+        self.parser.add_argument('--test_checkpoint', type=str, default='/home/zhong/Project/ESTRNN/ESTRNN/experiment/2020_09_21_00_59_16_ESTRNN_gopro_ds/model_best.path.tar', help='the path of checkpoint file for test' )
+        self.parser.add_argument('--video', action='store_true', help='if true, generate video results')
 
         args, _ = self.parser.parse_known_args()
 
