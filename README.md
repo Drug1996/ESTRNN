@@ -75,4 +75,4 @@ If you use any part of our code, or ESTRNN and BSD are useful for your research,
 ## Contact
 We are glad to hear if you have any suggestions and questions.  
 
-Please send email to *zzh-tech@gmail.com*
+Please send email to *zzh.tech@gmail.com*
